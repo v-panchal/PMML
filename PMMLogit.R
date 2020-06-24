@@ -2,7 +2,7 @@
 # Gibbs Sampler
 #####################################
 
-pmml <- function(x, y, S, sigmasq, trunc, wp) {
+pmmlogit <- function(x, y, S, sigmasq, trunc, wp) {
 
   require("Rcpp")
   
