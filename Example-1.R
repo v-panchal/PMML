@@ -16,4 +16,4 @@ probs <- as.vector(exp(XB)/(1+exp(XB)))
 y <- rbinom(n,1,probs)
 
 
-mout <- pmml(X, y, 5000, 1, 200)
+results <- pmml(X, y, 5000, 1, 200, 0)
