@@ -58,7 +58,7 @@ cppFunction(depends=c("RcppArmadillo","RcppDist"),' List pglexactC2(arma::mat x,
             
          
             
-            arma::vec weights = rep(r4beta(1,(floor(pow(2*log(p),.5)))+sum(res_beta.row(0)!=0),p-(floor(pow(2*log(p),.5))+sum(res_beta.row(0)!=0)),wp,1),p-1);
+            arma::vec weights = rep(r4beta(1,(floor(pow(2*log(p),.5)))+sum(res_beta.row(s-1)!=0),p-floor(pow(2*log(p),.5))+sum(res_beta.row(s-1)==0),wp,1),p-1);
 
             //Full conditional for q
             
