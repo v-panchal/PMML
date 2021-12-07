@@ -5,7 +5,7 @@
 require("Rcpp")
   
 
-cppFunction(depends=c("RcppArmadillo","RcppDist"),' List pglexactC2(arma::mat x, arma::vec y, int S, 
+cppFunction(depends=c("RcppArmadillo","RcppDist"),' List pmmlogit(arma::mat x, arma::vec y, int S, 
   double sigmasq, int trunc, double wp, double a, double b, double omega, double omtype){
     // SOME USEFUL INFORMATION
             
