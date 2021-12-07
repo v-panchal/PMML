@@ -2,18 +2,18 @@
 # Gibbs Sampler
 #####################################
 
-pmmlogit <- function(x, y, S, sigmasq, trunc, wp) {
-
-  require("Rcpp")
+require("Rcpp")
   
-cppFunction(depends=c("RcppArmadillo","RcppDist"),' List pglexactC2(arma::mat x, arma::vec y, int S, double sigmasq, int trunc, double wp){
+
+cppFunction(depends=c("RcppArmadillo","RcppDist"),' List pglexactC2(arma::mat x, arma::vec y, int S, 
+  double sigmasq, int trunc, double wp, double a, double b, double omega, double omtype){
     // SOME USEFUL INFORMATION
             
             int n = x.n_rows;
             int p = x.n_cols;
             
             // INITIALIZE STORAGE
-               arma::mat all_sumother(n,p);
+               arma::mat all_sumother(n,p-1);
             arma::mat res_beta(S,p);
             arma::mat res_invtau(S,p);
             arma::mat res_invdelta(S,p);
@@ -22,12 +22,19 @@ cppFunction(depends=c("RcppArmadillo","RcppDist"),' List pglexactC2(arma::mat x,
             CharacterVector models(S);
             models(0)="0";
             
+            arma::mat res_omega(S,p-1);
+            arma::vec omvec = rep(omtype, S);
+            
             // ASSIGN STARTING VALUES
             
             for(int k=0; k<p;k++){
             res_beta(0,k) = 0;
             res_invtau(0,k) = 1;
             res_weights(0,k)=0.5;
+            }
+            
+            for(int k=0; k<p-1; k++){
+            res_omega(0,k)=0.01;
             }
             
             for(int k=0; k<n;k++){
@@ -43,6 +50,7 @@ cppFunction(depends=c("RcppArmadillo","RcppDist"),' List pglexactC2(arma::mat x,
             kvec[dd] = y[dd] - 0.5;
             }
             
+        
             
             /////////////////////////////////////////////
             // GIBBS SAMPLER -- BIG LOOP
@@ -56,10 +64,16 @@ cppFunction(depends=c("RcppArmadillo","RcppDist"),' List pglexactC2(arma::mat x,
             invTau(pp) = res_invtau(s-1,pp);
             }
             
-         
+            double wt;
+            if(omvec(s)==1){
+                            wt = omega;
+            }else{ 
+                            wt = r4beta(1,a+sum(res_beta.row(s-1)!=0),b+sum(res_beta.row(s-1)==0),wp,1)(0);
+            }
+            arma::vec weights = rep(wt, p-1);
+          
             
-            arma::vec weights = rep(r4beta(1,(floor(pow(2*log(p),.5)))+sum(res_beta.row(s-1)!=0),p-floor(pow(2*log(p),.5))+sum(res_beta.row(s-1)==0),wp,1),p-1);
-
+            
             //Full conditional for q
             
             arma::vec q(n);
@@ -110,6 +124,7 @@ cppFunction(depends=c("RcppArmadillo","RcppDist"),' List pglexactC2(arma::mat x,
                  (((invTau(gg+1)) * 1.0/(sigmasq)) + sum3 ) );
                  double sweights = 1- ((1-weights(gg))/(1-weights(gg) + weights(gg)*(wone(gg)*wtwo(gg)) )    );
                  res_weights(s,gg)=sweights;
+                 res_omega(s,gg) = weights(gg);
                  double u = R::runif(0,1);
                  if(u < sweights) { beta(gg+1) = R::rnorm(bmean(gg),sqrt(bvar(gg))); 
                  
@@ -120,7 +135,6 @@ cppFunction(depends=c("RcppArmadillo","RcppDist"),' List pglexactC2(arma::mat x,
                 }  
               
               models(s)=current;
-
             // Full conditional for intercept
             
             invTau(0) = myrig( fabs(sqrt(sigmasq)/(beta(0))) ,1);
@@ -141,6 +155,10 @@ cppFunction(depends=c("RcppArmadillo","RcppDist"),' List pglexactC2(arma::mat x,
             
             // SAVING VALUES
             
+            for (int ll=0; ll<p-1; ll++){ 
+            res_omega(s,ll) = weights(ll);
+            }
+            
             for (int ll=0; ll<p; ll++){
             res_beta(s,ll)=beta(ll);
             res_invtau(s,ll)=invTau(ll);
@@ -151,10 +169,8 @@ cppFunction(depends=c("RcppArmadillo","RcppDist"),' List pglexactC2(arma::mat x,
             List result;
             
             result["sb"] = res_beta;
-            result["tau"] = res_invtau;
-            result["wts"] = res_weights;
             result["models"]=models;
-            result["all_s"]=all_sumother;
+            result["om"] = res_omega;
             return result;
             
             }  ', includes = c(' double myrig(double mu, double lambda){
@@ -260,44 +276,5 @@ cppFunction(depends=c("RcppArmadillo","RcppDist"),' List pglexactC2(arma::mat x,
                                return X;
                                }
                                
-                               ','#include <4beta.h>') )
-
-  p <- ncol(X)
-  mygibbsout0 <- pglexactC2(X, y, S, sigmasq, trunc, wp)
-  mygibbsout <- mygibbsout0$sb
-  mygibbsmodel <- mygibbsout0$models
-  mymodel <- names(sort(table(mygibbsmodel),decreasing=TRUE)[1])
-  varlist0 <- as.vector(as.numeric(unlist(strsplit(mymodel,""))))
-  if (length(varlist0)==1) {
-    varlist <- rep(0,p)
-  } else {
-    varlist <- varlist0
-  }
+                               ','#include <4beta.h>') ) 
   
-  hpm <- which(varlist!=0)+1
-  
-  m1 <- aperm(mygibbsout,c(2,1))
-  
-  mbeta <- apply(m1,1,mean)
-  msbeta <- apply(m1,1,sd)
-  length(mbeta)
-  cvbeta <- abs(mbeta)/msbeta
-  cvbeta[cvbeta=="NaN"]=0
-  kk <- 2
-  mmm <- kmeans(cbind(abs(mbeta[-1]),cvbeta[-1]),kk,algorithm=c("Lloyd"),iter.max=100)
-  l <- c()
-  for (m in 1:kk){l[m] <- length(which(mmm$cluster==m))}
-  cind <- which(l<max(l))
-  ss <- list()
-  for (cc in 1:length(cind)){ss[[cc]] <- which(mmm$cluster==cind[cc])}
-  
-  nzvar <- c(1,unlist(ss)+1)
-
-  post_prob <- c()
-  
-  for (i in 1:p){ post_prob[i] <- length(which(m1[i,]!=0))/S}
-  
-  return(list(selected_model=nzvar, Coef_est=mbeta, posterior_prob= post_prob, high.pr.model=hpm))
-  
-}
-
