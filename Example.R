@@ -17,5 +17,5 @@ y <- rbinom(n,1,probs)
 
 gibbsout <- pmmlogit(X, y, 5000, 10^3, 200, 0, 1, log(p), 0.05, 1)
 
-finalresults <- process_gibbs(gibbsout, 100)
+finalresults <- process_gibbs(gibbsout, 1000)
 
